@@ -1,0 +1,121 @@
+''' HMM  '''
+
+def forward_algorithm(seq, ST, HT, LT, HE, LE):
+    curr = {'H': 0, 'L': 0}
+    curr['H'] = ST['H'] * HE[seq[0]]
+    curr['L'] = ST['L'] * LE[seq[0]]
+    
+    for i in range(1, len(seq)):
+        htemp = (curr['H'] * HT['H'] * HE[seq[i]]) + (curr['L'] * LT['H'] * HE[seq[i]])
+        ltemp = (curr['H'] * HT['L'] * LE[seq[i]]) + (curr['L'] * LT['L'] * LE[seq[i]])
+        curr['H'] = htemp
+        curr['L'] = ltemp
+        
+    probability = curr['H'] + curr['L']
+    return probability
+
+def viterbi_algorithm(seq, ST, HT, LT, HE, LE):
+    p = {'H': 0, 'L': 0}
+    p['H'] = ST['H'] + HE[seq[0]]
+    p['L'] = ST['L'] + LE[seq[0]]
+    op = {0: [p['H'], p['L']]}
+    
+    for i in range(1, len(seq)):
+        htemp = HE[seq[i]] + max(p['H'] + HT['H'], p['L'] + LT['H'])
+        ltemp = LE[seq[i]] + max(p['H'] + HT['L'], p['L'] + LT['L'])
+        p['H'] = round(htemp, 3)
+        p['L'] = round(ltemp, 3)
+        op[i] = [p['H'], p['L']]
+    
+    path = ''
+    for i in op:
+        ip = op[i]
+        if ip[0] > ip[1]:
+            path += 'H'
+        else:
+            path += 'L'
+    
+    probability = 2 ** p[path[-1]]
+    return path, probability
+
+# Example usage:
+seq = 'GGCA'
+ST = {'H': 0.5, 'L': 0.5}
+HT = {'H': 0.5, 'L': 0.5}
+LT = {'H': 0.4, 'L': 0.6}
+HE = {'A': 0.2, 'C': 0.3, 'G': 0.3, 'T': 0.2}
+LE = {'A': 0.3, 'C': 0.2, 'G': 0.2, 'T': 0.3}
+
+forward_prob = forward_algorithm(seq, ST, HT, LT, HE, LE)
+print("Forward Algorithm Probability of sequence " + seq + ": " + str(forward_prob))
+
+seq = 'GGCACTGAA'
+ST = {'H': -1, 'L': -1}
+HT = {'H': -1, 'L': -1}
+LT = {'H': -1.322, 'L': -0.737}
+HE = {'A': -2.322, 'C': -1.737, 'G': -1.737, 'T': -2.322}
+LE = {'A': -1.737, 'C': -2.322, 'G': -2.322, 'T': -1.737}
+
+viterbi_path, viterbi_prob = viterbi_algorithm(seq, ST, HT, LT, HE, LE)
+print("Viterbi Algorithm Path: " + viterbi_path)
+print("Viterbi Algorithm Probability: " + str(viterbi_prob))
+
+
+'''  MDP '''
+
+def value_iteration(states, transition_probs, rewards, gamma, tolerance=0.03):
+    # Initialize the current value function dictionary
+    value_function = {state: 0 for state in states}
+    # Initialize a list to store value function updates for each iteration
+    value_updates = [value_function.copy()]
+    
+    # Perform value iteration until convergence
+    while True:
+        # Initialize a variable to track the maximum update difference
+        max_diff = 0
+        
+        # Create a copy of the current value function for iteration
+        new_value_function = value_function.copy()
+        
+        # Iterate over each state
+        for state in states:
+            # Calculate the expected value for each action
+            action_values = {}
+            for action, transitions in transition_probs[state].items():
+                action_value = sum(prob * (rewards[next_state] + gamma * value_function[next_state]) 
+                                   for next_state, prob in transitions.items())
+                action_values[action] = action_value
+            
+            # Update the value function for the state
+            new_value_function[state] = max(action_values.values())
+            
+            # Update the maximum update difference
+            max_diff = max(max_diff, abs(new_value_function[state] - value_function[state]))
+        
+        # Update the value function and store the update
+        value_function = new_value_function
+        value_updates.append(value_function.copy())
+        
+        # Check for convergence
+        if max_diff < tolerance:
+            break
+    
+    return value_updates
+
+# Define states, transition probabilities, rewards, and discount factor
+states = ["PU", "PF", "RU", "RF"]
+transition_probs = {
+    "PU": {"A": {"PU": 0.5, "PF": 0.5, "RU": 0, "RF": 0}, "S": {"PU": 1, "PF": 0, "RU": 0, "RF": 0}},
+    "PF": {"A": {"PU": 0, "PF": 1, "RU": 0, "RF": 0}, "S": {"PU": 0.5, "PF": 0, "RU": 0, "RF": 0.5}},
+    "RU": {"A": {"PU": 0.5, "PF": 0.5, "RU": 0, "RF": 0}, "S": {"PU": 0.5, "PF": 0, "RU": 0.5, "RF": 0}},
+    "RF": {"A": {"PU": 0, "PF": 1, "RU": 0, "RF": 0}, "S": {"PU": 0, "PF": 0, "RU": 0.5, "RF": 0.5}}
+}
+rewards = {"PU": 0, "PF": 0, "RU": 10, "RF": 10}
+gamma = 0.9
+
+# Perform value iteration
+value_updates = value_iteration(states, transition_probs, rewards, gamma)
+
+# Print the results
+for i, value_function in enumerate(value_updates):
+    print(f"Iteration {i}: {value_function}")
